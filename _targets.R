@@ -64,3 +64,6 @@ list(
     command = coefficients(lm(y ~ x, data = data))
   )
 )
+
+
+# Test
