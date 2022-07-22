@@ -1,0 +1,13 @@
+.Rproj.user
+.Rhistory
+.Rdata
+.httr-oauth
+.DS_Store
+.blg
+.log
+.out
+.xml
+.tex
+.gz
+.docx
+.bib
