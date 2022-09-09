@@ -5,7 +5,8 @@
 
 # Load packages required to define the pipeline:
 library(targets)
-# library(tarchetypes) # Load other packages as needed. # nolint
+library(tidyverse)
+library(tarchetypes) # Load other packages as needed. # nolint
 
 
 # Bayes options
@@ -34,10 +35,13 @@ set.seed(66502)
 # Pass these options to workers using options(worker_options)
 worker_options <- options()[c("mc.cores", "mc.threads", "brms.backend")]
 
+# Install custom theme
+devtools::install_github("meflynn/flynnprojects")
+
 
 # Set target options:
 tar_option_set(
-  packages = c("tibble", "tidyverse", "data.table", "brms", "tidybayes", "modelsummary"), # packages that your targets need to run
+  packages = c("tidyverse", "data.table", "brms", "sf", "raster", "tidybayes", "geodata", "modelsummary", "rnaturalearth", "flynnprojects", "viridis"), # packages that your targets need to run
   format = "rds" # default storage format
   # Set other options as needed.
 )
@@ -52,18 +56,44 @@ options(clustermq.scheduler = "multicore")
 lapply(list.files("R", full.names = TRUE, recursive = TRUE), source)
 # source("other_functions.R") # Source other scripts as needed. # nolint
 
-# Replace the target list below with your own:
+# Name countries we want to include in study
+countrylist <- list("DEU", "FRA", "GBR")
+countrylist.long <- list("Germany", "France", "United Kingdom")
+projcrs <- "EPSG:4326" # Set CRS
+wgseqproj <- "EPSG:4087"
+gridsize <- 50000
+#basesize for plot fonts
+# Enable custom fonts
+sysfonts::font_add_google("Oswald")
+showtext::showtext_auto()
+base_size <- 18
+base_family <- "Oswald"
+
+# # Replace the target list below with your own:
+# # You can use tar_load() to load an object from the pipeline to inspect it manually!
 list(
-  tar_target(
-    name = data,
-    command = tibble(x = rnorm(100), y = rnorm(100))
-#   format = "feather" # efficient storage of large data frames # nolint
-  ),
-  tar_target(
-    name = model,
-    command = coefficients(lm(y ~ x, data = data))
-  )
+
+  # Load raw data files
+  tar_target(wosis_chem_raw, "data/raw-data/WoSIS_2019_September/wosis_201909_layers_chemical.tsv", format  = "file"),
+  tar_target(wosis_phys_raw, "data/raw-data/WoSIS_2019_September/wosis_201909_layers_physical.tsv", format  = "file"),
+  tar_target(wosis_profiles_raw, "data/raw-data/WoSIS_2019_September/wosis_201909_profiles.tsv", format  = "file"),
+
+  # Run cleaning functions to generate clean data frames
+  tar_target(wosis_chem_clean, clean_wosis(wosis_chem_raw)),
+  tar_target(wosis_phys_clean, clean_wosis(wosis_phys_raw)),
+  tar_target(wosis_profile_clean, clean_wosis(wosis_profiles_raw)),
+  tar_target(bases_clean, clean_bases()), # uses troopdata package so it doesn't need a raw file
+  tar_target(wosis_comb_clean, merge_wosis(wosis_profile_clean, wosis_chem_clean, wosis_phys_clean)),
+  # Generate maps
+  tar_target(baselayer, clean_basemaps(countrylist)),
+  tar_target(gridlayer, clean_mapgrid(countrylist)),
+
+  # Merge data together
+  tar_target(finaldata, grid_aggregate(gridlayer, bases_clean, wosis_comb_clean)),
+
+  # Plot data
+  tar_target(plotslonlat, data_plot_lonlat(wosis_comb_clean, bases_clean, finaldata)),
+  tar_target(plotsgrid, data_plot_grid(finaldata))
 )
 
 
-# Test again
